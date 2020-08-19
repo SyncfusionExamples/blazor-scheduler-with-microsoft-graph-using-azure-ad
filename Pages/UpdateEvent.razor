@@ -1,0 +1,38 @@
+﻿@page "/updateevent"
+@inject IHttpClientFactory HttpClientFactory
+@inject ITokenAcquisition TokenAcquisitionService
+
+<div>
+    <SfButton OnClick="OnUpdateClick">Update Event</SfButton>
+</div>
+
+<div class="schedule-wrapper">
+    @EndResult
+</div>
+
+@code
+{
+    private HttpClient httpClient;
+    string EndResult = string.Empty;
+
+    private async void OnUpdateClick(MouseEventArgs args)
+    {
+        httpClient = HttpClientFactory.CreateClient();
+        var token = await TokenAcquisitionService.GetAccessTokenForUserAsync(new string[] { "Calendars.ReadWrite" });
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        /////////// Update an Event \\\\\\\\\\\\\\\\\\
+        var editEventID = "AAMkADA5ZDUzMzViLTUxNzYtNDZiNC04NDIwLWZlZWUwYzhjODdhMQBGAAAAAACl9gLwypLoS5T81IRZ0DyMBwDgDqaz5BqCTpQrlWQPXUpOAAAAAAENAADgDqaz5BqCTpQrlWQPXUpOAAAQ8xrXAAA=";
+        Uri editEventUri = new Uri($"https://graph.microsoft.com/beta/me/events/{editEventID}");
+        Event updateEvent = new Event()
+        {
+            Subject = "Sample Data Modified",
+            Start = new DateTimeTimeZone() { DateTime = new DateTime(2020, 8, 20, 5, 0, 0).ToString("o"), TimeZone = "Eastern Standard Time" },
+            End = new DateTimeTimeZone() { DateTime = new DateTime(2020, 8, 20, 8, 0, 0).ToString("o"), TimeZone = "Eastern Standard Time" },
+            Body = new ItemBody() { ContentType = BodyType.Text, Content = "Sample Body Content modified" }
+        };
+        HttpContent editEventContent = new StringContent(JsonConvert.SerializeObject(updateEvent), System.Text.Encoding.UTF8, "application/json");
+        HttpResponseMessage editEventResponse = await httpClient.PatchAsync(editEventUri, editEventContent);
+        EndResult = editEventResponse.IsSuccessStatusCode ? "Event has been updated successfully!" : editEventResponse.StatusCode.ToString();
+    }
+}

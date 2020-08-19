@@ -1,0 +1,32 @@
+﻿@page "/deleteevent"
+@inject IHttpClientFactory HttpClientFactory
+@inject ITokenAcquisition TokenAcquisitionService
+
+<div>
+    <SfButton OnClick="OnDeleteClick">Delete Event</SfButton>
+</div>
+
+<div class="schedule-wrapper">
+    @EndResult
+</div>
+
+@code
+{
+    private HttpClient httpClient;
+    string EndResult = string.Empty;
+
+    private async Task OnDeleteClick(MouseEventArgs args)
+    {
+        httpClient = HttpClientFactory.CreateClient();
+        var token = await TokenAcquisitionService.GetAccessTokenForUserAsync(new string[] { "Calendars.ReadWrite" });
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        ///////////////////// Delete an event ///////////////
+        var removeEventID = "AAMkADA5ZDUzMzViLTUxNzYtNDZiNC04NDIwLWZlZWUwYzhjODdhMQBGAAAAAACl9gLwypLoS5T81IRZ0DyMBwDgDqaz5BqCTpQrlWQPXUpOAAAAAAENAADgDqaz5BqCTpQrlWQPXUpOAAAQ8xrXAAA=";
+        Uri removeEventUri = new Uri($"https://graph.microsoft.com/beta/me/events/{removeEventID}");
+        HttpResponseMessage deleteResponse = await httpClient.DeleteAsync(removeEventUri);
+        EndResult = deleteResponse.IsSuccessStatusCode ? "Event has been removed successfully!" : deleteResponse.StatusCode.ToString();
+    }
+
+
+}

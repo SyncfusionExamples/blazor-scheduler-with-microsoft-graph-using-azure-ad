@@ -1,0 +1,53 @@
+﻿@page "/getevents"
+@inject IHttpClientFactory HttpClientFactory
+@inject ITokenAcquisition TokenAcquisitionService
+
+<table>
+    @foreach (var calendar in AllCalendars)
+    {
+        <tr>
+            <td>@calendar.AdditionalData["subject"].ToString()</td>
+            <td>@JObject.Parse(calendar.AdditionalData["start"].ToString())["dateTime"]</td>
+            <td>@JObject.Parse(calendar.AdditionalData["end"].ToString())["dateTime"]</td>
+        </tr>
+    }
+</table>
+
+<style>
+    table, th, td {
+        border: 1px solid black;
+    }
+</style>
+
+@code
+{
+    private HttpClient httpClient;
+    List<Calendar> AllCalendars = new List<Calendar>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            httpClient = HttpClientFactory.CreateClient();
+            var token = await TokenAcquisitionService.GetAccessTokenForUserAsync(new string[] { "Calendars.Read" });
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            /////////////////// Get Events ///////////////
+            HttpResponseMessage getEvents = await httpClient.GetAsync("https://graph.microsoft.com/beta/me/calendar/events");
+            if (getEvents.IsSuccessStatusCode)
+            {
+                string json = await getEvents.Content.ReadAsStringAsync();
+                JObject result = JsonConvert.DeserializeObject(json) as JObject;
+
+                foreach (JProperty child in result.Properties().Where(p => !p.Name.StartsWith("@")))
+                {
+                    AllCalendars = child.Value.ToObject<List<Calendar>>();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            throw ex.InnerException;
+        }
+    }
+}

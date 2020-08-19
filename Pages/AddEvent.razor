@@ -1,0 +1,37 @@
+﻿@page "/addevent"
+@inject IHttpClientFactory HttpClientFactory
+@inject ITokenAcquisition TokenAcquisitionService
+
+<div>
+    <SfButton OnClick="OnCreateClick">Add an Event</SfButton>
+</div>
+
+<div class="schedule-wrapper">
+    @EndResult
+</div>
+
+@code
+{
+    private HttpClient httpClient;
+    string EndResult = string.Empty;
+
+    private async void OnCreateClick(MouseEventArgs args)
+    {
+        httpClient = HttpClientFactory.CreateClient();
+        var token = await TokenAcquisitionService.GetAccessTokenForUserAsync(new string[] { "Calendars.ReadWrite" });
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        /////////////////// Add a New Event ///////////////
+        Uri addEventUri = new Uri("https://graph.microsoft.com/beta/me/calendar/events");
+        Event newEvent = new Event()
+        {
+            Subject = "Sample Data 1",
+            Start = new DateTimeTimeZone() { DateTime = new DateTime(2020, 8, 20, 3, 0, 0).ToString("o"), TimeZone = "Eastern Standard Time" },
+            End = new DateTimeTimeZone() { DateTime = new DateTime(2020, 8, 20, 5, 0, 0).ToString("o"), TimeZone = "Eastern Standard Time" },
+            Body = new ItemBody() { ContentType = BodyType.Text, Content = "Sample Body Content" }
+        };
+        HttpContent addEventContent = new StringContent(JsonConvert.SerializeObject(newEvent), System.Text.Encoding.UTF8, "application/json");
+        HttpResponseMessage addEventResponse = await httpClient.PostAsync(addEventUri, addEventContent);
+        EndResult = addEventResponse.IsSuccessStatusCode ? "Event has been added successfully!" : addEventResponse.StatusCode.ToString();
+    }
+}
