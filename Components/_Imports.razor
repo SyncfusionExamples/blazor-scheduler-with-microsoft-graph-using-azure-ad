@@ -1,15 +1,18 @@
 ﻿@using System.Net.Http
-@using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Components.Authorization
+@using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Components.Web
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
 @using BlazorSchedulerWithMSGraph
-@using BlazorSchedulerWithMSGraph.Shared
+@using BlazorSchedulerWithMSGraph.Components
 @using Microsoft.Identity.Web
 @using System.Net.Http.Headers
 @using Microsoft.Graph
+@using Microsoft.Graph.Models
 @using Newtonsoft.Json;
 @using Newtonsoft.Json.Linq;
 @using Syncfusion.Blazor
