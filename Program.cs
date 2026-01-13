@@ -30,12 +30,10 @@ builder.Services.AddControllersWithViews(options =>
 }).AddMicrosoftIdentityUI();
 
 builder.Services.AddRazorPages();
-builder.Services.AddServerSideBlazor()    
+builder.Services.AddServerSideBlazor()
 .AddMicrosoftIdentityConsentHandler();
 
 builder.Services.AddSyncfusionBlazor();
-
-
 
 var app = builder.Build();
 
@@ -50,15 +48,10 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseStaticFiles();
-
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.UseAntiforgery();
-
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

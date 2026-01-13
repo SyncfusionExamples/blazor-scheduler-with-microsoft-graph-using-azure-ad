@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
 	<UserSecretsId>aspnet-BlazorSchedulerWithMSGraph-5150AC63-165B-4359-8B0D-6545A82C9B8B</UserSecretsId>
-    <Nullable>disable</Nullable>
+    <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
