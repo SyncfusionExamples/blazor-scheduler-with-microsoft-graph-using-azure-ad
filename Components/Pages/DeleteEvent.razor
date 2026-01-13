@@ -21,12 +21,10 @@
         var token = await TokenAcquisitionService.GetAccessTokenForUserAsync(new string[] { "Calendars.ReadWrite" });
         httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         ///////////////////// Delete an event ///////////////
-        var removeEventID =
-        "AAMkADA5ZDUzMzViLTUxNzYtNDZiNC04NDIwLWZlZWUwYzhjODdhMQBGAAAAAACl9gLwypLoS5T81IRZ0DyMBwDgDqaz5BqCTpQrlWQPXUpOAAAAAAENAADgDqaz5BqCTpQrlWQPXUpOAAAQ8xrXAAA=";
+        var removeEventID = "AAMkADA5ZDUzMzViLTUxNzYtNDZiNC04NDIwLWZlZWUwYzhjODdhMQBGAAAAAACl9gLwypLoS5T81IRZ0DyMBwDgDqaz5BqCTpQrlWQPXUpOAAAAAAENAADgDqaz5BqCTpQrlWQPXUpOAAAQ8xrXAAA=";
         Uri removeEventUri = new Uri($"https://graph.microsoft.com/beta/me/events/{removeEventID}");
         HttpResponseMessage deleteResponse = await httpClient.DeleteAsync(removeEventUri);
-        EndResult = deleteResponse.IsSuccessStatusCode ? "Event has been removed successfully!" :
-        deleteResponse.StatusCode.ToString();
+        EndResult = deleteResponse.IsSuccessStatusCode ? "Event has been removed successfully!" : deleteResponse.StatusCode.ToString();
 
     }
 
