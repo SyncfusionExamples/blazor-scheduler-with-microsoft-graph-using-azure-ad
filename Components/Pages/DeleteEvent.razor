@@ -25,7 +25,6 @@
         Uri removeEventUri = new Uri($"https://graph.microsoft.com/beta/me/events/{removeEventID}");
         HttpResponseMessage deleteResponse = await httpClient.DeleteAsync(removeEventUri);
         EndResult = deleteResponse.IsSuccessStatusCode ? "Event has been removed successfully!" : deleteResponse.StatusCode.ToString();
-
     }
 
 
