@@ -1,9 +1,13 @@
 ﻿@page "/listevents"
+@rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
 @inject ITokenAcquisition TokenAcquisitionService
 
-<SfSchedule TValue="AppointmentData" Height="750px" SelectedDate="new DateTime(2020,8,20)">
+<SfSchedule TValue="AppointmentData" Height="750px" SelectedDate="new DateTime(2026, 1, 10)">
     <ScheduleEventSettings DataSource="@DataSource"></ScheduleEventSettings>
+</SfSchedule>
+<SfSchedule TValue="AppointmentData">
+
 </SfSchedule>
 
 @code
