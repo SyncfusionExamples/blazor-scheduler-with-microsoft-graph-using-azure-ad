@@ -1,0 +1,322 @@
+﻿@page "/"
+@rendermode InteractiveServer
+
+@using System.Globalization
+@using System.Net.Http
+@using System.Net.Http.Headers
+@using System.Text
+@using Microsoft.Identity.Client
+@using Microsoft.AspNetCore.Components.Authorization
+@using Newtonsoft.Json
+@using Newtonsoft.Json.Linq
+@using Syncfusion.Blazor.Schedule
+
+@inject IHttpClientFactory HttpClientFactory
+@inject ITokenAcquisition TokenAcquisition
+@inject AuthenticationStateProvider AuthState
+@inject MicrosoftIdentityConsentAndConditionalAccessHandler ConsentHandler
+@inject NavigationManager Nav
+
+<div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+    <AuthorizeView>
+        <Authorized>
+            <button class="btn btn-outline-secondary" @onclick="SignOut">Sign out</button>
+        </Authorized>
+        <NotAuthorized>
+            <button class="btn btn-primary" @onclick="SignIn">Sign in with Microsoft</button>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+
+<SfSchedule TValue="AppointmentData"
+            Height="650px"
+            Timezone="Asia/Kolkata"
+            @bind-SelectedDate="CurrentDate"
+            @bind-CurrentView="CurrentView">
+    <ScheduleEventSettings DataSource="@DataSource"></ScheduleEventSettings>
+
+    <ScheduleViews>
+        <ScheduleView Option="View.Day" />
+        <ScheduleView Option="View.Week" />
+        <ScheduleView Option="View.WorkWeek" />
+        <ScheduleView Option="View.Month" />
+        <ScheduleView Option="View.Agenda" />
+    </ScheduleViews>
+
+    <ScheduleEvents TValue="AppointmentData"
+                    OnActionBegin="OnActionBegin"
+                    ActionCompleted="OnActionCompleted">
+    </ScheduleEvents>
+</SfSchedule>
+
+@code {
+    // --- SIMPLE CONFIG ---
+    private const string WindowsTz   = "India Standard Time"; 
+    private const int    DAYS_PAST   = 90;
+    private const int    DAYS_FUTURE = 90;
+
+    private DateTime CurrentDate = DateTime.Today;
+    private View     CurrentView = View.Month;
+
+    // The Scheduler’s bound data (simple model)
+    private List<AppointmentData> DataSource = new();
+
+    // ---------- Sign in / Sign out ----------
+    private void SignIn()
+    {
+        // Triggers OpenIdConnect challenge via Microsoft.Identity.Web UI endpoints
+        Nav.NavigateTo("MicrosoftIdentity/Account/SignIn", forceLoad: true);
+    }
+
+    private void SignOut()
+    {
+        // Triggers sign-out (clears cookies, ends session)
+        Nav.NavigateTo("MicrosoftIdentity/Account/SignOut", forceLoad: true);
+    }
+
+    // ---- Helper: are we authenticated? ----
+    private async Task<bool> IsUserAuthenticatedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        return auth?.User?.Identity is { IsAuthenticated: true };
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            if (await IsUserAuthenticatedAsync())
+            {
+                await LoadEventsAsync();
+            }
+        }
+        catch (MicrosoftIdentityWebChallengeUserException ex)
+        {
+            ConsentHandler.HandleException(ex);
+        }
+        catch (MsalUiRequiredException ex)
+        {
+            ConsentHandler.HandleException(ex);
+        }
+    }
+
+    // Keep begin lightweight
+    private Task OnActionBegin(ActionEventArgs<AppointmentData> args) => Task.CompletedTask;
+
+    // Handle create / update / delete after the Scheduler commits its change
+    private async Task OnActionCompleted(ActionEventArgs<AppointmentData> args)
+    {
+        // Ignore navigation actions
+        if (args.ActionType is ActionType.DateNavigate or ActionType.ViewNavigate)
+        {
+            return;
+        }
+
+        if (args.ActionType is not (ActionType.EventCreate or ActionType.EventChange or ActionType.EventRemove))
+            return;
+
+        // ✅ Guard: avoid token acquisition when user is not signed in
+        if (!await IsUserAuthenticatedAsync())
+        {
+            return;
+        }
+
+        var client = await GetBearerClientAsync(new[] { "Calendars.ReadWrite" });
+        if (client is null) return;
+
+        client.DefaultRequestHeaders.Remove("Prefer");
+        client.DefaultRequestHeaders.Add("Prefer", $"outlook.timezone=\"{WindowsTz}\"");
+
+        try
+        {
+            // CREATE
+            if (args.AddedRecords is { Count: > 0 })
+            {
+                foreach (var rec in args.AddedRecords)
+                {
+                    var payload = ToGraphEvent(rec);
+                    using var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+                    using var resp = await client.PostAsync("https://graph.microsoft.com/v1.0/me/events", content);
+                    if (!resp.IsSuccessStatusCode) continue;
+
+                    var body = JObject.Parse(await resp.Content.ReadAsStringAsync());
+                    rec.GraphId = body["id"]?.ToString() ?? string.Empty;
+                    rec.Id      = rec.GraphId; // keep UI Id = Graph Id for simplicity
+                }
+            }
+
+            // UPDATE
+            if (args.ChangedRecords is { Count: > 0 })
+            {
+                foreach (var rec in args.ChangedRecords)
+                {
+                    var payload = ToGraphEvent(rec);
+                    using var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+
+                    if (string.IsNullOrWhiteSpace(rec.GraphId))
+                    {
+                        // No Graph id? create instead
+                        using var create = await client.PostAsync("https://graph.microsoft.com/v1.0/me/events", content);
+                        if (!create.IsSuccessStatusCode) continue;
+                        var body = JObject.Parse(await create.Content.ReadAsStringAsync());
+                        rec.GraphId = body["id"]?.ToString() ?? string.Empty;
+                        rec.Id      = rec.GraphId;
+                    }
+                    else
+                    {
+                        using var req  = new HttpRequestMessage(HttpMethod.Patch, $"https://graph.microsoft.com/v1.0/me/events/{rec.GraphId}") { Content = content };
+                        using var resp = await client.SendAsync(req);
+                        // keep UI optimistic; we skip extra reads
+                    }
+                }
+            }
+
+            // DELETE
+            if (args.DeletedRecords is { Count: > 0 })
+            {
+                foreach (var rec in args.DeletedRecords)
+                {
+                    if (!string.IsNullOrWhiteSpace(rec.GraphId))
+                    {
+                        await client.DeleteAsync($"https://graph.microsoft.com/v1.0/me/events/{rec.GraphId}");
+                    }
+                    DataSource.RemoveAll(e => e.Id == rec.Id || e.GraphId == rec.GraphId || ReferenceEquals(e, rec));
+                }
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // intentionally minimal error handling to keep code simple
+        }
+    }
+
+    // ------- SIMPLE LOAD: ±90 days window (single request, $top=1000) -------
+    private async Task LoadEventsAsync()
+    {
+        // ✅ Guard: avoid token acquisition when not authenticated
+        if (!await IsUserAuthenticatedAsync())
+        {
+            return;
+        }
+
+        var startLocal = DateTime.Today.AddDays(-DAYS_PAST);
+        var endLocal   = DateTime.Today.AddDays(DAYS_FUTURE);
+
+        var tz = TimeZoneInfo.FindSystemTimeZoneById(WindowsTz);
+        var startUtc = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(startLocal, DateTimeKind.Unspecified), tz);
+        var endUtc   = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(endLocal,   DateTimeKind.Unspecified), tz);
+
+        var client = await GetBearerClientAsync(new[] { "Calendars.Read" });
+        if (client is null) return;
+
+        client.DefaultRequestHeaders.Remove("Prefer");
+        client.DefaultRequestHeaders.Add("Prefer", $"outlook.timezone=\"{WindowsTz}\"");
+
+        var url =
+            "https://graph.microsoft.com/v1.0/me/calendarView" +
+            $"?startDateTime={Uri.EscapeDataString(startUtc.ToString("o"))}" +
+            $"&endDateTime={Uri.EscapeDataString(endUtc.ToString("o"))}" +
+            $"&$select=id,subject,start,end,isAllDay" +
+            $"&$orderby=start/dateTime&$top=1000";
+
+        try
+        {
+            using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+            if (!resp.IsSuccessStatusCode) return;
+
+            var json = await resp.Content.ReadAsStringAsync();
+            var root = JObject.Parse(json);
+
+            var list = new List<AppointmentData>(256);
+            var items = (JArray?)root["value"] ?? new JArray();
+
+            foreach (var e in items)
+            {
+                var id       = (string?)e["id"] ?? string.Empty;
+                var subject  = (string?)e["subject"] ?? string.Empty;
+                var startStr = (string?)e["start"]?["dateTime"]; // wall-clock per Prefer header
+                var endStr   = (string?)e["end"]?["dateTime"];
+
+                DateTime.TryParse(startStr, out var startLocalParsed);
+                DateTime.TryParse(endStr,   out var endLocalParsed);
+
+                // Mark Local to help the Scheduler render correctly
+                startLocalParsed = DateTime.SpecifyKind(startLocalParsed, DateTimeKind.Local);
+                endLocalParsed   = DateTime.SpecifyKind(endLocalParsed,   DateTimeKind.Local);
+
+                list.Add(new AppointmentData
+                {
+                    Id        = string.IsNullOrEmpty(id) ? Guid.NewGuid().ToString() : id,
+                    GraphId   = id,
+                    Subject   = subject,
+                    StartTime = startLocalParsed,
+                    EndTime   = endLocalParsed
+                });
+            }
+
+            DataSource = list.OrderBy(e => e.StartTime).ToList();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // minimal error handling to keep the sample short
+        }
+    }
+
+    private static object ToGraphEvent(AppointmentData rec)
+    {
+        // Minimal JSON body understood by Graph (time strings without 'Z', paired with timeZone).
+        return new
+        {
+            subject = string.IsNullOrWhiteSpace(rec.Subject) ? "(No subject)" : rec.Subject,
+            start   = new { dateTime = rec.StartTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture), timeZone = WindowsTz },
+            end     = new { dateTime = rec.EndTime  .ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture), timeZone = WindowsTz },
+            body    = new { contentType = "text", content = rec.Subject ?? string.Empty }
+        };
+    }
+
+    private async Task<HttpClient?> GetBearerClientAsync(string[] scopes)
+    {
+        // Don’t call TokenAcquisition unless the user is authenticated
+        if (!await IsUserAuthenticatedAsync())
+        {
+            return null;
+        }
+
+        string token;
+        try
+        {
+            token = await TokenAcquisition.GetAccessTokenForUserAsync(scopes);
+        }
+        catch (MicrosoftIdentityWebChallengeUserException ex)
+        {
+            // Kick off interactive consent / re-auth
+            ConsentHandler.HandleException(ex);
+            return null;
+        }
+        catch (MsalUiRequiredException ex)
+        {
+            // Kick off interactive re-auth
+            ConsentHandler.HandleException(ex);
+            return null;
+        }
+
+        var client = HttpClientFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    // --- Simple model bound to Syncfusion Scheduler ---
+    public class AppointmentData
+    {
+        public string   Id        { get; set; } = string.Empty; // UI Id
+        public string   GraphId   { get; set; } = string.Empty; // Microsoft Graph event id
+        public string   Subject   { get; set; }
+        public DateTime StartTime { get; set; }
+        public DateTime EndTime   { get; set; }
+    }
+}
