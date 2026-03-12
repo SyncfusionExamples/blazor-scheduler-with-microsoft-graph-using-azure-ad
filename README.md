@@ -23,23 +23,23 @@ This repository contains a sample full-stack application demonstrating how to sy
 
 
 ## Running the Application
-1. Navigate to `BlazorSchedulerApp` folder
+1. Navigate to `BlazorSchedulerApp` project folder
     ```
     cd BlazorSchedulerApp
     ```
-1. Rebuild the solution to restore Packages: 
+2. Rebuild the solution to restore Packages: 
     ```bash
     dotnet build
     ```
-2. Start the application:
+3. Start the application:
     ```bash
     dotnet run
     ```
-3. Navigate to [`http://localhost:5050`](http://localhost:5050) in your browser.
+4. Navigate to [`http://localhost:5050`](http://localhost:5050) in your browser.
 
-4. Log in with the Microsoft account to display outlook calender events on the scheduler.
+5. Log in with the Microsoft account to display outlook calender events on the scheduler.
 
-5. You can perform CRUD operation on the scheduler that will be reflected in the Outlook Calender
+6. You can perform CRUD operation on the scheduler that will be reflected in the Outlook Calender
 
 ## Output Preview
 
