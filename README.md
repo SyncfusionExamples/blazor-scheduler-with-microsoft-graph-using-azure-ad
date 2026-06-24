@@ -1,6 +1,6 @@
 # Blazor Scheduler with Microsoft Graph using Azure AD
 
-A solution demonstrating integration of Office 365 Outlook events with a Blazor calendar application using Microsoft Graph API and Azure AD authentication.
+A Blazor application demonstrating how to manage Outlook calendar appointments using Microsoft Graph API with Azure AD authentication, integrated with the [Blazor Scheduler](https://www.syncfusion.com/blazor-components/blazor-scheduler) component to provide a rich, interactive scheduling interface.
 
 ## Project Overview
 
