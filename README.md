@@ -2,7 +2,7 @@
   howto.md
   A step-by-step guide to integrate Blazor Scheduler with Microsoft Graph using Azure AD
 -->
-# How to Integrate integrate Blazor Scheduler with Microsoft Graph using Azure AD
+# How to Integrate Blazor Scheduler with Microsoft Graph using Azure AD
 
 This repository contains a sample full-stack application demonstrating how to synchronize events between Microsoft Outlook and the [Blazor Scheduler](https://www.syncfusion.com/blazor-components/blazor-scheduler) Component with Microsoft Graph API using Azure AD.
 
